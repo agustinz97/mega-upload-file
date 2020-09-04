@@ -33,7 +33,7 @@ app.get("/", (req, res) => {
   });
 });
 
-app.post("/upload", async (req, res) => {
+app.post("/upload", (req, res) => {
   try {
     if (!req.files) {
       console.log("No files");
@@ -46,18 +46,37 @@ app.post("/upload", async (req, res) => {
         randomstring.generate(30) + Date.now() + path.extname(file.name);
       const filePath = path.join(__dirname, "tmp", newName);
 
-      file.mv(filePath);
+      const fileSize = file.size;
 
-      const stream = fs.createReadStream(filePath);
-      const downloadUrl = await upload(stream, newName);
+      if (fileSize > 5242880) {
+        res.statusCode = 403;
+        res.json({ message: "File max size allowed is 5MB" });
+      } else {
+        console.group("upload");
+        console.log("Start");
 
-      res.json({
-        message: "Uploaded",
-        filename: newName,
-        downloadLink: downloadUrl,
-      });
+        file.mv(filePath, async (err) => {
+          if (err) throw err;
 
-      fs.unlinkSync(filePath);
+          console.log(`Moved to server`);
+
+          const stream = fs.createReadStream(filePath);
+          const downloadUrl = await upload(stream, newName);
+
+          console.log(`Uploaded to ${downloadUrl}`);
+
+          res.json({
+            message: "Uploaded",
+            filename: newName,
+            downloadLink: downloadUrl,
+          });
+
+          fs.unlinkSync(filePath);
+
+          console.log(`Finished`);
+          console.groupEnd("upload");
+        });
+      }
     }
   } catch (err) {
     console.log(err);
